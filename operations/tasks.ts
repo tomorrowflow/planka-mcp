@@ -112,6 +112,50 @@ const taskCardIdMap: Record<string, string> = {};
  * @param {number} params.position - The position of the task in the card
  * @returns {Promise<object>} The created task
  */
+/**
+ * Gets or creates a default task list for a card
+ * Planka requires tasks to be in a task-list, so we auto-create one if needed
+ */
+async function getOrCreateTaskList(cardId: string): Promise<string> {
+    try {
+        // Get the card to check for existing task lists
+        const cardResponse = await plankaRequest(`/api/cards/${cardId}`) as {
+            item?: any;
+            included?: {
+                taskLists?: Array<{ id: string; name: string; cardId: string }>;
+            };
+        };
+
+        const taskLists = cardResponse?.included?.taskLists || [];
+
+        // If there's an existing task list, use it
+        if (taskLists.length > 0) {
+            return taskLists[0].id;
+        }
+
+        // Create a new task list
+        const response = await plankaRequest(
+            `/api/cards/${cardId}/task-lists`,
+            {
+                method: "POST",
+                body: { name: "Tasks", position: 65535, showOnFrontOfCard: true },
+            },
+        ) as { item?: { id: string } };
+
+        if (!response?.item?.id) {
+            throw new Error("Failed to create task list");
+        }
+
+        return response.item.id;
+    } catch (error) {
+        throw new Error(
+            `Failed to get/create task list: ${
+                error instanceof Error ? error.message : String(error)
+            }`,
+        );
+    }
+}
+
 export async function createTask(params: {
     cardId: string;
     name: string;
@@ -120,8 +164,12 @@ export async function createTask(params: {
     try {
         const { cardId, name, position = 65535 } = params;
 
+        // Get or create a task list for this card
+        const taskListId = await getOrCreateTaskList(cardId);
+
+        // Create the task in the task list
         const response: any = await plankaRequest(
-            `/api/cards/${cardId}/tasks`,
+            `/api/task-lists/${taskListId}/tasks`,
             {
                 method: "POST",
                 body: { name, position },

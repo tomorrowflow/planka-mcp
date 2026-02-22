@@ -92,6 +92,7 @@ export async function createList(options: CreateListOptions) {
                 body: {
                     name: options.name,
                     position: options.position,
+                    type: "active",  // Required by Planka 2.x
                 },
             },
         );

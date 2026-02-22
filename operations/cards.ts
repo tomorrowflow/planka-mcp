@@ -23,6 +23,7 @@ export const CreateCardSchema = z.object({
     name: z.string().describe("Card name"),
     description: z.string().optional().describe("Card description"),
     position: z.number().optional().describe("Card position (default: 65535)"),
+    type: z.string().optional().describe("Card type (e.g., 'project', 'task')"),
 });
 
 /**
@@ -136,15 +137,27 @@ const CardResponseSchema = z.object({
  */
 export async function createCard(options: CreateCardOptions) {
     try {
+        const body: Record<string, unknown> = {
+            name: options.name,
+        };
+
+        // Only include optional fields if they are defined
+        if (options.description !== undefined && options.description !== null && options.description !== "") {
+            body.description = options.description;
+        }
+        if (options.position !== undefined && options.position !== null) {
+            body.position = options.position;
+        } else {
+            body.position = 65535; // Default position
+        }
+        // Type is required - default to 'project' if not provided
+        body.type = options.type || "project";
+
         const response = await plankaRequest(
             `/api/lists/${options.listId}/cards`,
             {
                 method: "POST",
-                body: {
-                    name: options.name,
-                    description: options.description,
-                    position: options.position,
-                },
+                body,
             },
         );
         const parsedResponse = CardResponseSchema.parse(response);

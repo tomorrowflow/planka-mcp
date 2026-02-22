@@ -118,27 +118,27 @@ export async function getBoardSummary(params: GetBoardSummaryParams) {
             0,
         );
 
-        // Find specific lists by name
+        // Find specific lists by name (handle null names for archive/trash lists)
         const backlogList = listsWithCards.find((list: any) =>
-            list.name.toLowerCase() === "backlog"
+            list.name?.toLowerCase() === "backlog"
         );
         const inProgressList = listsWithCards.find((list: any) =>
-            list.name.toLowerCase() === "in progress"
+            list.name?.toLowerCase() === "in progress"
         );
         const testingList = listsWithCards.find((list: any) =>
-            list.name.toLowerCase() === "testing"
+            list.name?.toLowerCase() === "testing"
         );
         const doneList = listsWithCards.find((list: any) =>
-            list.name.toLowerCase() === "done"
+            list.name?.toLowerCase() === "done"
         );
 
-        // Count cards with specific labels
+        // Count cards with specific labels (handle null label names)
         const urgentCards = listsWithCards.flatMap((list: any) => list.cards)
             .filter((card: any) =>
                 card.labelIds?.some((labelId: string) =>
                     boardLabels.find((label: any) =>
                         label.id === labelId &&
-                        label.name.toLowerCase() === "urgent"
+                        label.name?.toLowerCase() === "urgent"
                     )
                 )
             ).length;
@@ -148,7 +148,7 @@ export async function getBoardSummary(params: GetBoardSummaryParams) {
                 card.labelIds?.some((labelId: string) =>
                     boardLabels.find((label: any) =>
                         label.id === labelId &&
-                        label.name.toLowerCase() === "bug"
+                        label.name?.toLowerCase() === "bug"
                     )
                 )
             ).length;

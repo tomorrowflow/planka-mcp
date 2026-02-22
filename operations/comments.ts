@@ -101,7 +101,7 @@ const CommentActionResponseSchema = z.object({
 export async function createComment(options: CreateCommentOptions) {
     try {
         const response = await plankaRequest(
-            `/api/cards/${options.cardId}/comment-actions`,
+            `/api/cards/${options.cardId}/comments`,
             {
                 method: "POST",
                 body: {
@@ -109,8 +109,11 @@ export async function createComment(options: CreateCommentOptions) {
                 },
             },
         );
-        const parsedResponse = CommentActionResponseSchema.parse(response);
-        return parsedResponse.item;
+        // The new comments endpoint returns a simpler structure
+        if (response && typeof response === 'object' && 'item' in response) {
+            return response.item;
+        }
+        return response;
     } catch (error) {
         throw new Error(
             `Failed to create comment: ${
@@ -129,33 +132,16 @@ export async function createComment(options: CreateCommentOptions) {
  */
 export async function getComments(cardId: string) {
     try {
-        const response = await plankaRequest(`/api/cards/${cardId}/actions`);
+        const response = await plankaRequest(`/api/cards/${cardId}/comments`) as {
+            items?: any[];
+            included?: any;
+        };
 
-        try {
-            // Try to parse as a CommentsResponseSchema first
-            const parsedResponse = CommentActionsResponseSchema.parse(response);
-            // Filter only comment actions
-            if (parsedResponse.items && Array.isArray(parsedResponse.items)) {
-                return parsedResponse.items.filter((item) =>
-                    item.type === "commentCard"
-                );
-            }
-            return parsedResponse.items;
-        } catch (parseError) {
-            // If that fails, try to parse as an array directly
-            if (Array.isArray(response)) {
-                const items = z.array(CommentActionSchema).parse(response);
-                // Filter only comment actions
-                return items.filter((item) => item.type === "commentCard");
-            }
-
-            // If we get here, we couldn't parse the response in any expected format
-            throw new Error(
-                `Could not parse comments response: ${
-                    JSON.stringify(response)
-                }`,
-            );
+        if (response?.items && Array.isArray(response.items)) {
+            return response.items;
         }
+
+        return [];
     } catch (error) {
         // If all else fails, return an empty array
         return [];
@@ -296,14 +282,16 @@ export async function updateComment(
     options: Partial<Omit<CreateCommentOptions, "cardId">>,
 ) {
     try {
-        const response = await plankaRequest(`/api/comment-actions/${id}`, {
+        const response = await plankaRequest(`/api/comments/${id}`, {
             method: "PATCH",
             body: {
                 text: options.text,
             },
         });
-        const parsedResponse = CommentActionResponseSchema.parse(response);
-        return parsedResponse.item;
+        if (response && typeof response === 'object' && 'item' in response) {
+            return (response as any).item;
+        }
+        return response;
     } catch (error) {
         throw new Error(
             `Failed to update comment: ${
@@ -322,7 +310,7 @@ export async function updateComment(
  */
 export async function deleteComment(id: string) {
     try {
-        await plankaRequest(`/api/comment-actions/${id}`, {
+        await plankaRequest(`/api/comments/${id}`, {
             method: "DELETE",
         });
         return { success: true };

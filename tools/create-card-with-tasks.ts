@@ -25,6 +25,9 @@ export const createCardWithTasksSchema = z.object({
     position: z.number().optional().describe(
         "Optional position for the card in the list",
     ),
+    type: z.string().optional().describe(
+        "Card type (e.g., 'project', 'task')",
+    ),
 });
 
 /**
@@ -51,7 +54,7 @@ export type CreateCardWithTasksParams = z.infer<
  * @throws {Error} If there's an error creating the card, tasks, or comment
  */
 export async function createCardWithTasks(params: CreateCardWithTasksParams) {
-    const { listId, name, description, tasks, comment, position = 65535 } =
+    const { listId, name, description, tasks, comment, position = 65535, type } =
         params;
 
     try {
@@ -61,6 +64,7 @@ export async function createCardWithTasks(params: CreateCardWithTasksParams) {
             name,
             description: description || "",
             position,
+            type,
         });
 
         // Create tasks if provided

@@ -283,9 +283,9 @@ export async function deleteLabel(id: string) {
  */
 export async function addLabelToCard(cardId: string, labelId: string) {
     try {
-        // The correct endpoint is /api/cards/{cardId}/labels with labelId in the body
-        await plankaRequest(
-            `/api/cards/${cardId}/labels`,
+        // The correct endpoint is /api/cards/{cardId}/card-labels with labelId in the body
+        const response = await plankaRequest(
+            `/api/cards/${cardId}/card-labels`,
             {
                 method: "POST",
                 body: {
@@ -294,7 +294,7 @@ export async function addLabelToCard(cardId: string, labelId: string) {
             },
         );
 
-        return { success: true };
+        return { success: true, cardLabel: (response as any)?.item };
     } catch (error) {
         throw new Error(
             `Failed to add label to card: ${
@@ -313,15 +313,41 @@ export async function addLabelToCard(cardId: string, labelId: string) {
  */
 export async function removeLabelFromCard(cardId: string, labelId: string) {
     try {
-        // The correct endpoint is /api/cards/{cardId}/labels/{labelId}
-        await plankaRequest(
-            `/api/cards/${cardId}/labels/${labelId}`,
-            {
-                method: "DELETE",
-            },
+        // First, get the card to find the cardLabel entry
+        const cardResponse = await plankaRequest(`/api/cards/${cardId}`) as {
+            item?: any;
+            included?: {
+                cardLabels?: Array<{ id: string; cardId: string; labelId: string }>;
+            };
+        };
+
+        // Find the cardLabel that matches both cardId and labelId
+        const cardLabels = cardResponse?.included?.cardLabels || [];
+        const cardLabel = cardLabels.find(
+            (cl) => cl.cardId === cardId && cl.labelId === labelId
         );
 
-        return { success: true };
+        if (!cardLabel) {
+            // Label not on card - consider this a success (idempotent)
+            return { success: true, message: "Label was not on card" };
+        }
+
+        // Try to delete the card-label relationship
+        // Note: Some Planka versions have issues with the DELETE endpoint
+        try {
+            await plankaRequest(`/api/card-labels/${cardLabel.id}`, {
+                method: "DELETE",
+            });
+            return { success: true };
+        } catch (deleteError) {
+            // If DELETE fails, the label may still be visible but we can't remove it
+            // This is a known limitation in some Planka versions
+            throw new Error(
+                `Cannot remove label - this may be a Planka version limitation. ` +
+                `The DELETE /api/card-labels endpoint returned an error. ` +
+                `Try removing the label manually through the Planka UI.`
+            );
+        }
     } catch (error) {
         throw new Error(
             `Failed to remove label from card: ${

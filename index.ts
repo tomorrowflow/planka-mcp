@@ -18,6 +18,8 @@ import {
   createCardWithTasks,
   getBoardSummary,
   getCardDetails,
+  getActivityFeed,
+  resolveUsers,
 } from "./tools/index.js";
 
 import { VERSION } from "./common/version.js";
@@ -611,7 +613,14 @@ server.tool(
       case "batch_create":
         if (!args.tasks || args.tasks.length === 0)
           throw new Error("tasks array is required for batch_create action");
-        result = await tasks.batchCreateTasks({ tasks: args.tasks });
+        // If tasks don't have cardId, fall back to top-level cardId
+        const batchTasks = args.tasks.map((t) => ({
+          ...t,
+          cardId: t.cardId || args.cardId,
+        })) as { cardId: string; name: string; position?: number }[];
+        if (batchTasks.some((t) => !t.cardId))
+          throw new Error("Each task must have a cardId, or provide cardId at the top level");
+        result = await tasks.batchCreateTasks({ tasks: batchTasks });
         break;
 
       case "get_one":
@@ -776,6 +785,69 @@ server.tool(
       case "delete":
         if (!args.id) throw new Error("id is required for delete action");
         result = await boardMemberships.deleteBoardMembership(args.id);
+        break;
+
+      default:
+        throw new Error(`Unknown action: ${args.action}`);
+    }
+
+    return {
+      content: [{ type: "text", text: JSON.stringify(result) }],
+    };
+  }
+);
+
+// 9. Activity Feed - Track changes across a project
+server.tool(
+  "mcp_kanban_activity_feed",
+  "Get activity feed showing recent changes in a project. Returns new/updated cards, comments, task completions within a time range. Use this to understand what changed without checking each card individually.",
+  {
+    action: z
+      .enum(["get_activity", "resolve_users"])
+      .describe("The action to perform"),
+    projectId: z
+      .string()
+      .optional()
+      .describe("The ID of the project to get activity for (required for get_activity)"),
+    since: z
+      .string()
+      .optional()
+      .describe("ISO date string - start of time range (defaults to 24h ago)"),
+    until: z
+      .string()
+      .optional()
+      .describe("ISO date string - end of time range (defaults to now)"),
+    maxComments: z
+      .number()
+      .optional()
+      .default(20)
+      .describe("Maximum number of comment entries to return"),
+    userIds: z
+      .array(z.string())
+      .optional()
+      .describe("Array of user IDs to resolve (for resolve_users action)"),
+  },
+  async (args) => {
+    let result;
+
+    switch (args.action) {
+      case "get_activity":
+        if (!args.projectId)
+          throw new Error("projectId is required for get_activity action");
+        result = await getActivityFeed({
+          projectId: args.projectId,
+          since: args.since,
+          until: args.until,
+          maxComments: args.maxComments,
+        });
+        break;
+
+      case "resolve_users":
+        if (!args.userIds || args.userIds.length === 0)
+          throw new Error("userIds array is required for resolve_users action");
+        result = await resolveUsers({
+          userIds: args.userIds,
+        });
         break;
 
       default:
